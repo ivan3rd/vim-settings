@@ -3,6 +3,7 @@ runtime! plugin/sensible.vim
 set exrc
 set norelativenumber
 set nu
+set relativenumber
 set hidden
 set noerrorbells
 set smartindent
@@ -42,7 +43,9 @@ set nocp
 if version >= 600
     filetype plugin indent on
 endif
-autocmd VimEnter * NERDTree | wincmd p
+autocmd VimEnter * NERDTreeTabsToggle
+autocmd VimEnter * wincmd p
+"autocmd VimEnter * NERDTree | wincmd p
 let g:closetag_filenames = '*.vue,*.html,*.xhtml,*.phtml'
 
 call plug#begin('~/.vim/plugged')
@@ -68,9 +71,11 @@ Plug 'alvan/vim-closetag'
 " У плагина выше ^ не работает почему-то автозакрытие тегов. Может быть
 " происходит конфликт с YouCompleteMe?
 Plug 'Raimondi/delimitMate'
+Plug 'AndrewRadev/switch.vim'
 "Plug 'jiangmiao/auto-pairs'
 Plug 'valsorym/.del.vim-tagbar'
 Plug 'ycm-core/YouCompleteMe'
+Plug 'jistr/vim-nerdtree-tabs'
 
 call plug#end()
 
@@ -120,6 +125,15 @@ map <Leader>/ <plug>NERDCommenterInvert
 nmap <Leader>t :TagbarToggle<CR>
 nmap <Leader>b :Buffers<CR>
 
+let g:delimitMate_expand_cr = 2
+let g:delimitMate_expand_space = 1
+au FileType vue let b:delimitMate_matchpairs = "(:),{:},[:]"
+
+" switch.vim
+let g:switch_custom_definitions = [
+\       switch#NormalizedCase(['from', 'to'])
+\   ]
+
 " ale
 map <leader>e <Plug>(ale_next_wrap)
 map <leader>r <Plug>(ale_previous_wrap)
@@ -127,6 +141,9 @@ let g:ale_linters = {'python': ['flake8']}
 let g:ale_fixers = {
 \    'python': ['black']
 \   }
+
+" YouCompleteMe
+set completeopt-=preview
 
 " lsp for YouCompleteMe
 source /Users/user/Documents/programming/lsp-examples-master/vimrc.generated
@@ -138,6 +155,7 @@ source /Users/user/Documents/programming/lsp-examples-master/vimrc.generated
 "\        'filletiypes': ['vue'],
 "\    },
 "\]
+
 
 " saving files
 nmap <Leader>s :wa<CR>
@@ -177,6 +195,12 @@ set ssop-=folds " do not store folds
 " restore place in file from previous session
 autocmd BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
 
+" WHITESPACES and how to deal with them
+" Ctrl-j/k deletes blank line below/above, and Alt-j/k inserts.
+nnoremap <silent><C-j> m`:silent +g/\m^\s*$/d<CR>``:noh<CR>
+nnoremap <silent><C-k> m`:silent -g/\m^\s*$/d<CR>``:noh<CR>
+nnoremap <silent><S-j> :set paste<CR>m`o<Esc>``:set nopaste<CR>
+nnoremap <silent><S-k> :set paste<CR>m`O<Esc>``:set nopaste<CR>
 
 fun! TrimWhitespace()
     let l:save = winsaveview()
@@ -188,6 +212,9 @@ augroup THE_PRIMEAGEN
     autocmd!
     autocmd BufWritePre * :call TrimWhitespace()
 augroup END
+
+" Do not remove indent on new empty line (negates work of delimitMate)
+":inoremap <CR> <CR>x<BS>
 
 " wrap toggle
 setlocal nowrap
@@ -220,3 +247,76 @@ function ToggleWrap()
         inoremap <buffer> <silent> <End>  <C-o>g<End>
     endif
 endfunction
+
+" Delete buffer while keeping window layout (don't close buffer's windows).
+" Version 2008-11-18 from http://vim.wikia.com/wiki/VimTip165
+if v:version < 700 || exists('loaded_bclose') || &cp
+  finish
+endif
+let loaded_bclose = 1
+if !exists('bclose_multiple')
+  let bclose_multiple = 1
+endif
+
+" Display an error message.
+function! s:Warn(msg)
+  echohl ErrorMsg
+  echomsg a:msg
+  echohl NONE
+endfunction
+
+" Command ':Bclose' executes ':bd' to delete buffer in current window.
+" The window will show the alternate buffer (Ctrl-^) if it exists,
+" or the previous buffer (:bp), or a blank buffer if no previous.
+" Command ':Bclose!' is the same, but executes ':bd!' (discard changes).
+" An optional argument can specify which buffer to close (name or number).
+function! s:Bclose(bang, buffer)
+  if empty(a:buffer)
+    let btarget = bufnr('%')
+  elseif a:buffer =~ '^\d\+$'
+    let btarget = bufnr(str2nr(a:buffer))
+  else
+    let btarget = bufnr(a:buffer)
+  endif
+  if btarget < 0
+    call s:Warn('No matching buffer for '.a:buffer)
+    return
+  endif
+  if empty(a:bang) && getbufvar(btarget, '&modified')
+    call s:Warn('No write since last change for buffer '.btarget.' (use :Bclose!)')
+    return
+  endif
+  " Numbers of windows that view target buffer which we will delete.
+  let wnums = filter(range(1, winnr('$')), 'winbufnr(v:val) == btarget')
+  if !g:bclose_multiple && len(wnums) > 1
+    call s:Warn('Buffer is in multiple windows (use ":let bclose_multiple=1")')
+    return
+  endif
+  let wcurrent = winnr()
+  for w in wnums
+    execute w.'wincmd w'
+    let prevbuf = bufnr('#')
+    if prevbuf > 0 && buflisted(prevbuf) && prevbuf != btarget
+      buffer #
+    else
+      bprevious
+    endif
+    if btarget == bufnr('%')
+      " Numbers of listed buffers which are not the target to be deleted.
+      let blisted = filter(range(1, bufnr('$')), 'buflisted(v:val) && v:val != btarget')
+      " Listed, not target, and not displayed.
+      let bhidden = filter(copy(blisted), 'bufwinnr(v:val) < 0')
+      " Take the first buffer, if any (could be more intelligent).
+      let bjump = (bhidden + blisted + [-1])[0]
+      if bjump > 0
+        execute 'buffer '.bjump
+      else
+        execute 'enew'.a:bang
+      endif
+    endif
+  endfor
+  execute 'bdelete'.a:bang.' '.btarget
+  execute wcurrent.'wincmd w'
+endfunction
+command! -bang -complete=buffer -nargs=? Bclose call <SID>Bclose(<q-bang>, <q-args>)
+nnoremap <silent> <Leader>d :Bclose<CR>

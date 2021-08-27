@@ -76,6 +76,7 @@ Plug 'AndrewRadev/switch.vim'
 Plug 'valsorym/.del.vim-tagbar'
 Plug 'ycm-core/YouCompleteMe'
 Plug 'jistr/vim-nerdtree-tabs'
+Plug 'lyokha/vim-xkbswitch'
 
 call plug#end()
 
@@ -128,6 +129,13 @@ nmap <Leader>b :Buffers<CR>
 let g:delimitMate_expand_cr = 2
 let g:delimitMate_expand_space = 1
 au FileType vue let b:delimitMate_matchpairs = "(:),{:},[:]"
+
+" XkbSwitch
+let g:XkbSwitchEnabled = 1
+let g:XkbSwitchLib = '/usr/local/lib/libxkbswitch.dylib'
+let g:XkbSwitchIMappings = ['ru']
+let g:XkbSwitchNLayout = 'us'
+set keymap=russian-jcukenwin
 
 " switch.vim
 let g:switch_custom_definitions = [
